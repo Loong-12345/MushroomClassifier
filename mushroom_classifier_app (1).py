@@ -90,7 +90,7 @@ def predict(model, image, model_type):
     image = Image.open(io.BytesIO(image)).convert('RGB')
 
     # IMPORTANT: Change (128, 128) to your model's expected input size.
-    target_size = (128, 128)
+    target_size = (224, 224)
     image = image.resize(target_size)
 
     # Convert the image to a numpy array and normalize it
