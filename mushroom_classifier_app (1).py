@@ -41,30 +41,30 @@ def load_model():
 # IMPORTANT: Define the class names your model was trained on.
 # The order MUST exactly match the output of your model's prediction.
 CLASS_NAMES = [
-    "amanita augusta",
+    "Agaricus xanthodermus",
+    "Amanita augusta",
     "Amanita cirtina",
-    "agaricus xanthodermus",
+    "Armillaria mellea",
+    "Boletus Edulis",
+    "Clitocybe nuda",
+    "Flammulina velutipes",
     "Hypholama lateritium",
-    "lactarius torminosus",
-    "flammulina velutipes",
-    "boletus edulis",
-    "clitocybe nuda",
-    "armillaria mellea",
-    "leccinum scabrum",
+    "Lactarius torminosus",
+    "Leccinum scabrum",
 ]
 
 # IMPORTANT: Define the toxicity information for each of your classes.
 TOXICITY_INFO = {
-    "amanita augusta": "toxic",
-    "Amanita cirtina": "toxic",
-    "agaricus xanthodermus": "toxic",
-    "Hypholama lateritium": "toxic",
-    "lactarius torminosus": "toxic",
-    "flammulina velutipes": "safe",
-    "boletus edulis": "safe",
-    "clitocybe nuda": "safe",
-    "armillaria mellea": "safe",
-    "leccinum scabrum": "safe",
+    "Agaricus xanthodermus" : "Toxic",
+    "Amanita augusta" : "Toxic",
+    "Amanita cirtina" : "Toxic",
+    "Armillaria mellea" : "Toxic",
+    "Boletus Edulis" : "Toxic",
+    "Clitocybe nuda" : "Safe",
+    "Flammulina velutipes" : "Safe",
+    "Hypholama lateritium" : "Safe",
+    "Lactarius torminosus" : "Safe",
+    "Leccinum scabrum" : "Safe",
 }
 
 # --- Main Application ---
