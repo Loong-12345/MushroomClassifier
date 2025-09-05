@@ -116,8 +116,17 @@ def predict(model, image, model_type):
         # Flatten the image array for the SVM model
         image_flattened = image_array.flatten().reshape(1, -1)
         
-        # Make a prediction
-        predicted_index = model.predict(image_flattened)[0]
+        # Make a prediction. The SVM model directly predicts the class name (string).
+        predicted_species_name = model.predict(image_flattened)[0]
+        
+        # We need to find the integer index corresponding to this predicted name.
+        try:
+            predicted_index = CLASS_NAMES.index(predicted_species_name)
+        except ValueError:
+            # This is a safeguard in case the model predicts a class not in our list.
+            st.error(f"Error: The model predicted a species ('{predicted_species_name}') that is not in the defined class list.")
+            return None, None
+
         # Standard SVM .predict() doesn't give a confidence score, so we return None.
         return predicted_index, None
 
