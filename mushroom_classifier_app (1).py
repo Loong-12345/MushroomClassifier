@@ -12,6 +12,7 @@ from PIL import Image
 import numpy as np
 import tensorflow as tf
 import io
+import joblib
 
 # --- Configuration ---
 # Set the page configuration for the Streamlit app.
@@ -23,19 +24,31 @@ st.set_page_config(
     initial_sidebar_state="auto",
 )
 
-# --- Model Loading and Class Definitions ---
+# --- Model Loading ---
 
-# IMPORTANT: Make sure your model file is in the same directory as this script,
-# or provide the full path to the file.
+# IMPORTANT: Make sure your model files are in the same directory as this script,
+# or provide the full path to the files.
+
 @st.cache_resource
-def load_model():
-    """Loads the trained TensorFlow model."""
-    # Replace 'your_mushroom_model.h5' with the actual filename of your model.
-    try:
-        model = tf.keras.models.load_model('mushroom_cnn.h5')
+def load_cnn_model():
+    """Loads the trained Keras CNN model."""
+    try
+        # Replace 'your_cnn_model.h5' with the actual filename of your Keras model.
+        model = tf.keras.models.load_model('mushroom_classifier_model.keras')
         return model
     except Exception as e:
-        st.error(f"Error loading model: {e}")
+        st.error(f"Error loading CNN model: {e}")
+        return None
+
+@st.cache_resource
+def load_svm_model():
+    """Loads the trained SVM model."""
+    try:
+        # Replace 'your_svm_model.joblib' with the actual filename of your SVM model.
+        model = joblib.load('mushroom_svm_model.joblib')
+        return model
+    except Exception as e:
+        st.error(f"Error loading SVM model: {e}")
         return None
 
 # IMPORTANT: Define the class names your model was trained on.
@@ -67,82 +80,96 @@ TOXICITY_INFO = {
     "Leccinum scabrum" : "Safe",
 }
 
+# --- Prediction Function ---
+
+def predict(model, image, model_type):
+    """
+    Preprocesses the image and returns prediction based on the model type.
+    """
+    # Open the image using PIL
+    image = Image.open(io.BytesIO(image)).convert('RGB')
+
+    # IMPORTANT: Change (128, 128) to your model's expected input size.
+    target_size = (128, 128)
+    image = image.resize(target_size)
+
+    # Convert the image to a numpy array and normalize it
+    image_array = np.array(image) / 255.0
+
+    if model_type == 'CNN':
+        # Add a batch dimension for the CNN model
+        image_batch = np.expand_dims(image_array, axis=0)
+        # Make a prediction
+        predictions = model.predict(image_batch)
+        predicted_index = np.argmax(predictions[0])
+        confidence = np.max(predictions[0])
+        return predicted_index, confidence
+
+    elif model_type == 'SVM':
+        # Flatten the image array for the SVM model
+        image_flattened = image_array.flatten().reshape(1, -1)
+        # Make a prediction
+        predicted_index = model.predict(image_flattened)[0]
+        # Standard SVM .predict() doesn't give a confidence score, so we return None.
+        return predicted_index, None
+
+
 # --- Main Application ---
-
 def main():
-    """
-    The main function that runs the Streamlit application.
-    """
-    # Load the (mock) model
-    model = load_model()
+    st.title("🍄 Mushroom Classifier")
+    st.sidebar.title("Model Selection")
 
-    if model is None:
-        st.stop() # Don't run the app if the model failed to load
-
-    # --- UI Components ---
-    st.title("🍄 Mushroom Species & Toxicity Classifier")
-    st.markdown("""
-        Welcome! Upload an image of a mushroom, and this application will predict its species and whether it's edible or poisonous.
-
-        **Disclaimer:** This is a prototype and for educational purposes only. **Do not eat any mushroom based on this classification.** Always consult with an expert.
-    """)
-
-    # Image uploader
-    uploaded_file = st.file_uploader(
-        "Choose a mushroom image...",
-        type=["jpg", "jpeg", "png"]
+    model_choice = st.sidebar.radio(
+        "Choose a model for prediction:",
+        ('-- Select a Model --', 'CNN (Keras)', 'SVM')
     )
 
-    if uploaded_file is not None:
-        # To read file as bytes:
-        bytes_data = uploaded_file.getvalue()
+    if model_choice == '-- Select a Model --':
+        st.info("Welcome! Please select a model from the sidebar to begin classification.")
+        st.markdown("""
+        **Disclaimer:** This is a prototype and for educational purposes only.
+        **Do not eat any mushroom based on this classification.** Always consult with an expert.
+        """)
 
-        # Display the uploaded image
-        st.image(bytes_data, caption='Uploaded Image.', use_column_width=True)
-        st.write("") # Add a little space
+    elif model_choice in ['CNN (Keras)', 'SVM']:
+        model_type = 'CNN' if 'CNN' in model_choice else 'SVM'
+        st.header(f"Using {model_choice} Model")
 
-        # --- Image Preprocessing and Prediction ---
-        st.write("Classifying...")
+        model = load_cnn_model() if model_type == 'CNN' else load_svm_model()
 
-        with st.spinner('Analyzing the mushroom...'):
-            try:
-                # Open the image using PIL
-                image = Image.open(io.BytesIO(bytes_data)).convert('RGB')
+        if model is None:
+            st.warning("The selected model could not be loaded. Please check the model file.")
+            st.stop()
 
-                # IMPORTANT: Change (224, 224) to your model's expected input size.
+        uploaded_file = st.file_uploader(
+            "Choose a mushroom image...",
+            type=["jpg", "jpeg", "png"],
+            key=f"{model_type}_uploader" # Unique key to prevent widget state issues
+        )
 
-                target_size = (128, 128)
-                image = image.resize(target_size)
+        if uploaded_file is not None:
+            bytes_data = uploaded_file.getvalue()
+            st.image(bytes_data, caption='Uploaded Image.', use_column_width=True)
 
-                # Convert the image to a numpy array and normalize it
-                image_array = np.array(image) / 255.0
+            with st.spinner('Analyzing the mushroom...'):
+                try:
+                    predicted_index, confidence = predict(model, bytes_data, model_type)
+                    predicted_species = CLASS_NAMES[predicted_index]
+                    toxicity = TOXICITY_INFO.get(predicted_species, "Unknown")
 
-                # Add a batch dimension
-                image_batch = np.expand_dims(image_array, axis=0)
+                    st.success("Classification Complete!")
+                    st.markdown(f"### Predicted Species: **{predicted_species}**")
 
-                # Make a prediction
-                predictions = model.predict(image_batch)
-                predicted_index = np.argmax(predictions[0])
-                confidence = np.max(predictions[0])
+                    if confidence is not None:
+                        st.markdown(f"### Confidence: **{confidence:.2%}**")
 
-                # Get the results
-                predicted_species = CLASS_NAMES[predicted_index]
-                toxicity = TOXICITY_INFO.get(predicted_species, "Unknown")
+                    if "Poisonous" in toxicity or "Psychoactive" in toxicity:
+                        st.error(f"### Toxicity: **{toxicity}** ☠️")
+                    else:
+                        st.success(f"### Toxicity: **{toxicity}** ✅")
 
-                # --- Display Results ---
-                st.success("Classification Complete!")
-                st.markdown(f"### Predicted Species: **{predicted_species}**")
-                st.markdown(f"### Confidence: **{confidence:.2%}**")
-
-                if "Poisonous" in toxicity or "Psychoactive" in toxicity:
-                    st.error(f"### Toxicity: **{toxicity}** ☠️")
-                else:
-                    st.success(f"### Toxicity: **{toxicity}** ✅")
-
-                st.info("Remember to always be cautious and consult a mycologist before consuming any wild mushroom.")
-
-            except Exception as e:
-                st.error(f"An error occurred during processing: {e}")
+                except Exception as e:
+                    st.error(f"An error occurred during processing: {e}")
 
 # Entry point for the script
 if __name__ == '__main__':
