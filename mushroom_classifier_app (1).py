@@ -110,7 +110,8 @@ def main():
                 image = Image.open(io.BytesIO(bytes_data)).convert('RGB')
 
                 # IMPORTANT: Change (224, 224) to your model's expected input size.
-                target_size = (224, 224)
+
+                target_size = (128, 128)
                 image = image.resize(target_size)
 
                 # Convert the image to a numpy array and normalize it
