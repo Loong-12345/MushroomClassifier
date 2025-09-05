@@ -32,7 +32,7 @@ st.set_page_config(
 @st.cache_resource
 def load_cnn_model():
     """Loads the trained Keras CNN model."""
-    try
+    try:
         # Replace 'your_cnn_model.h5' with the actual filename of your Keras model.
         model = tf.keras.models.load_model('mushroom_classifier_model.keras')
         return model
