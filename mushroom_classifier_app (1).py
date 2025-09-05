@@ -106,8 +106,16 @@ def predict(model, image, model_type):
         return predicted_index, confidence
 
     elif model_type == 'SVM':
+        # --- SVM Preprocessing ---
+        # The SVM expects 8100 features, which corresponds to a 90x90 grayscale image.
+        target_size = (90, 90)
+        image = image.resize(target_size)
+        image = image.convert('L') # Convert to grayscale
+        image_array = np.array(image) / 255.0
+        
         # Flatten the image array for the SVM model
         image_flattened = image_array.flatten().reshape(1, -1)
+        
         # Make a prediction
         predicted_index = model.predict(image_flattened)[0]
         # Standard SVM .predict() doesn't give a confidence score, so we return None.
