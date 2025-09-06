@@ -5,3 +5,4 @@ Pillow
 joblib
 scikit-learn
 ultralytics
+opencv-python-headless
