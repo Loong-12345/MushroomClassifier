@@ -189,45 +189,59 @@ def main():
                 # --- YOLO Prediction and Drawing Logic ---
                 st.image(bytes_data, caption='Uploaded Image.', use_column_width=True)
                 with st.spinner('Detecting mushrooms...'):
-                    # FIX: Convert the image bytes to a PIL Image object for compatibility
-                    image_for_yolo = Image.open(io.BytesIO(bytes_data))
-                    results = model(image_for_yolo)
-                    
-                    # Process results and draw on a fresh copy of the image
-                    image_to_draw_on = Image.open(io.BytesIO(bytes_data)).convert("RGB")
-                    draw = ImageDraw.Draw(image_to_draw_on)
-                    
-                    detected_items = []
-                    for box in results[0].boxes:
-                        # Unpack box details
-                        x1, y1, x2, y2 = box.xyxy[0]
-                        conf = box.conf[0]
-                        cls = int(box.cls[0])
-                        species_name = CLASS_NAMES[cls]
+                    try:
+                        # FIX: Open the image from bytes ONCE to prevent buffer issues.
+                        pil_image = Image.open(io.BytesIO(bytes_data))
                         
-                        # Draw rectangle and label
-                        label = f"{species_name} ({conf:.2f})"
-                        draw.rectangle([x1, y1, x2, y2], outline="red", width=3)
-                        draw.text((x1, y1), label, fill="red")
+                        # Run YOLO model on the PIL image
+                        results = model(pil_image)
                         
-                        detected_items.append((species_name, conf))
-                    
-                    st.success("Detection Complete!")
-                    st.image(image_to_draw_on, caption='Processed Image with Detections.', use_column_width=True)
-                    
-                    st.subheader("Detected Species:")
-                    if not detected_items:
-                        st.info("No mushrooms were detected in the image.")
-                    else:
-                        for species, confidence in detected_items:
-                            toxicity = TOXICITY_INFO.get(species, "Unknown")
-                            st.markdown(f"- **{species}** (Confidence: {confidence:.2%}) - Toxicity: **{toxicity}**")
+                        # Create a copy of the image to draw on, ensuring it's in RGB mode.
+                        image_to_draw_on = pil_image.copy().convert("RGB")
+                        draw = ImageDraw.Draw(image_to_draw_on)
+                        
+                        # FIX: Gracefully load a font to prevent errors in environments
+                        # where the default font is not available.
+                        try:
+                            font = ImageFont.load_default()
+                        except IOError:
+                            st.warning("Default font not found. Using a basic font for labels.")
+                            font = ImageFont.load_default() # Fallback for older Pillow versions
+
+                        detected_items = []
+                        for box in results[0].boxes:
+                            # Unpack box details
+                            x1, y1, x2, y2 = box.xyxy[0]
+                            conf = box.conf[0]
+                            cls = int(box.cls[0])
+                            species_name = CLASS_NAMES[cls]
+                            
+                            # Draw rectangle and label
+                            label = f"{species_name} ({conf:.2f})"
+                            draw.rectangle([x1, y1, x2, y2], outline="red", width=3)
+                            draw.text((x1, y1), label, fill="red", font=font)
+                            
+                            detected_items.append((species_name, conf))
+                        
+                        st.success("Detection Complete!")
+                        st.image(image_to_draw_on, caption='Processed Image with Detections.', use_column_width=True)
+                        
+                        st.subheader("Detected Species:")
+                        if not detected_items:
+                            st.info("No mushrooms were detected in the image.")
+                        else:
+                            for species, confidence in detected_items:
+                                toxicity = TOXICITY_INFO.get(species, "Unknown")
+                                st.markdown(f"- **{species}** (Confidence: {confidence:.2%}) - Toxicity: **{toxicity}**")
+
+                    except Exception as e:
+                        st.error(f"An error occurred during YOLO processing: {e}")
 
             else:
                 # --- Classification Logic for CNN and SVM ---
                 st.image(bytes_data, caption='Uploaded Image.', use_column_width=True)
                 with st.spinner('Analyzing the mushroom...'):
-                    predicted_index, confidence = predict(model, bytes_data, model_type)
+                    predicted_index, confidence = predict_classification(model, bytes_data, model_type)
                     
                     if predicted_index is not None:
                         predicted_species = CLASS_NAMES[predicted_index]
