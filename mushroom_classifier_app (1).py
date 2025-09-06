@@ -8,7 +8,7 @@ Original file is located at
 """
 
 import streamlit as st
-from PIL import Image
+from PIL import Image, ImageDraw, ImageFont
 import numpy as np
 import tensorflow as tf
 import io
