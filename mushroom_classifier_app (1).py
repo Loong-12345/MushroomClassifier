@@ -13,6 +13,7 @@ import numpy as np
 import tensorflow as tf
 import io
 import joblib
+from ultralytics import YOLO
 
 # --- Configuration ---
 # Set the page configuration for the Streamlit app.
@@ -20,8 +21,8 @@ import joblib
 st.set_page_config(
     page_title="Mushroom Classifier",
     page_icon="🍄",
-    layout="centered",
-    initial_sidebar_state="auto",
+    layout="wide",
+    initial_sidebar_state="expanded",
 )
 
 # --- Model Loading ---
@@ -49,6 +50,17 @@ def load_svm_model():
         return model
     except Exception as e:
         st.error(f"Error loading SVM model: {e}")
+        return None
+
+@st.cache_resource
+def load_yolo_model():
+    """Loads the trained YOLO model from a .pt file."""
+    try:
+        # Replace 'your_yolo_model.pt' with the actual filename of your YOLO model.
+        model = YOLO('mushroom_yolo.pt')
+        return model
+    except Exception as e:
+        st.error(f"Error loading YOLO model: {e}")
         return None
 
 # IMPORTANT: Define the class names your model was trained on.
@@ -133,26 +145,32 @@ def predict(model, image, model_type):
 
 # --- Main Application ---
 def main():
-    st.title("🍄 Mushroom Classifier")
+    st.title("🍄 Mushroom Classifier & Detector")
     st.sidebar.title("Model Selection")
 
     model_choice = st.sidebar.radio(
-        "Choose a model for prediction:",
-        ('-- Select a Model --', 'CNN (Keras)', 'SVM')
+        "Choose a model:",
+        ('-- Select a Model --', 'CNN (Keras)', 'SVM', 'YOLO')
     )
 
     if model_choice == '-- Select a Model --':
-        st.info("Welcome! Please select a model from the sidebar to begin classification.")
+        st.info("Welcome! Please select a model from the sidebar to begin.")
         st.markdown("""
-        **Disclaimer:** This is a prototype and for educational purposes only.
-        **Do not eat any mushroom based on this classification.** Always consult with an expert.
+        **Disclaimer:** This is for educational purposes only.
+        **Do not eat any mushroom based on this classification.** Always consult an expert.
         """)
 
-    elif model_choice in ['CNN (Keras)', 'SVM']:
-        model_type = 'CNN' if 'CNN' in model_choice else 'SVM'
+    elif model_choice in ['CNN (Keras)', 'SVM', 'YOLO']:
+        model_type = model_choice.split(' ')[0] # Gets 'CNN', 'SVM', or 'YOLO'
         st.header(f"Using {model_choice} Model")
 
-        model = load_cnn_model() if model_type == 'CNN' else load_svm_model()
+        model = None
+        if model_type == 'CNN':
+            model = load_cnn_model()
+        elif model_type == 'SVM':
+            model = load_svm_model()
+        elif model_type == 'YOLO':
+            model = load_yolo_model()
 
         if model is None:
             st.warning("The selected model could not be loaded. Please check the model file.")
@@ -161,32 +179,69 @@ def main():
         uploaded_file = st.file_uploader(
             "Choose a mushroom image...",
             type=["jpg", "jpeg", "png"],
-            key=f"{model_type}_uploader" # Unique key to prevent widget state issues
+            key=f"{model_type}_uploader"
         )
 
         if uploaded_file is not None:
             bytes_data = uploaded_file.getvalue()
-            st.image(bytes_data, caption='Uploaded Image.', use_column_width=True)
-
-            with st.spinner('Analyzing the mushroom...'):
-                try:
-                    predicted_index, confidence = predict(model, bytes_data, model_type)
-                    predicted_species = CLASS_NAMES[predicted_index]
-                    toxicity = TOXICITY_INFO.get(predicted_species, "Unknown")
-
-                    st.success("Classification Complete!")
-                    st.markdown(f"### Predicted Species: **{predicted_species}**")
-
-                    if confidence is not None:
-                        st.markdown(f"### Confidence: **{confidence:.2%}**")
-
-                    if "Poisonous" in toxicity or "Psychoactive" in toxicity:
-                        st.error(f"### Toxicity: **{toxicity}** ☠️")
+            
+            if model_type == 'YOLO':
+                # --- YOLO Prediction and Drawing Logic ---
+                st.image(bytes_data, caption='Uploaded Image.', use_column_width=True)
+                with st.spinner('Detecting mushrooms...'):
+                    # The YOLO model from ultralytics can take the image bytes directly
+                    results = model(bytes_data)
+                    
+                    # Process results and draw on the image
+                    image = Image.open(io.BytesIO(bytes_data)).convert("RGB")
+                    draw = ImageDraw.Draw(image)
+                    
+                    detected_items = []
+                    for box in results[0].boxes:
+                        # Unpack box details
+                        x1, y1, x2, y2 = box.xyxy[0]
+                        conf = box.conf[0]
+                        cls = int(box.cls[0])
+                        species_name = CLASS_NAMES[cls]
+                        
+                        # Draw rectangle and label
+                        label = f"{species_name} ({conf:.2f})"
+                        draw.rectangle([x1, y1, x2, y2], outline="red", width=3)
+                        draw.text((x1, y1), label, fill="red")
+                        
+                        detected_items.append((species_name, conf))
+                    
+                    st.success("Detection Complete!")
+                    st.image(image, caption='Processed Image with Detections.', use_column_width=True)
+                    
+                    st.subheader("Detected Species:")
+                    if not detected_items:
+                        st.info("No mushrooms were detected in the image.")
                     else:
-                        st.success(f"### Toxicity: **{toxicity}** ✅")
+                        for species, confidence in detected_items:
+                            toxicity = TOXICITY_INFO.get(species, "Unknown")
+                            st.markdown(f"- **{species}** (Confidence: {confidence:.2%}) - Toxicity: **{toxicity}**")
 
-                except Exception as e:
-                    st.error(f"An error occurred during processing: {e}")
+            else:
+                # --- Classification Logic for CNN and SVM ---
+                st.image(bytes_data, caption='Uploaded Image.', use_column_width=True)
+                with st.spinner('Analyzing the mushroom...'):
+                    predicted_index, confidence = predict_classification(model, bytes_data, model_type)
+                    
+                    if predicted_index is not None:
+                        predicted_species = CLASS_NAMES[predicted_index]
+                        toxicity = TOXICITY_INFO.get(predicted_species, "Unknown")
+
+                        st.success("Classification Complete!")
+                        st.markdown(f"### Predicted Species: **{predicted_species}**")
+
+                        if confidence is not None:
+                            st.markdown(f"### Confidence: **{confidence:.2%}**")
+
+                        if "Poisonous" in toxicity or "Psychoactive" in toxicity:
+                            st.error(f"### Toxicity: **{toxicity}** ☠️")
+                        else:
+                            st.success(f"### Toxicity: **{toxicity}** ✅")
 
 # Entry point for the script
 if __name__ == '__main__':
