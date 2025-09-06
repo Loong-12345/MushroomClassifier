@@ -189,12 +189,13 @@ def main():
                 # --- YOLO Prediction and Drawing Logic ---
                 st.image(bytes_data, caption='Uploaded Image.', use_column_width=True)
                 with st.spinner('Detecting mushrooms...'):
-                    # The YOLO model from ultralytics can take the image bytes directly
-                    results = model(bytes_data)
+                    # FIX: Convert the image bytes to a PIL Image object for compatibility
+                    image_for_yolo = Image.open(io.BytesIO(bytes_data))
+                    results = model(image_for_yolo)
                     
-                    # Process results and draw on the image
-                    image = Image.open(io.BytesIO(bytes_data)).convert("RGB")
-                    draw = ImageDraw.Draw(image)
+                    # Process results and draw on a fresh copy of the image
+                    image_to_draw_on = Image.open(io.BytesIO(bytes_data)).convert("RGB")
+                    draw = ImageDraw.Draw(image_to_draw_on)
                     
                     detected_items = []
                     for box in results[0].boxes:
@@ -212,7 +213,7 @@ def main():
                         detected_items.append((species_name, conf))
                     
                     st.success("Detection Complete!")
-                    st.image(image, caption='Processed Image with Detections.', use_column_width=True)
+                    st.image(image_to_draw_on, caption='Processed Image with Detections.', use_column_width=True)
                     
                     st.subheader("Detected Species:")
                     if not detected_items:
@@ -242,7 +243,6 @@ def main():
                             st.error(f"### Toxicity: **{toxicity}** ☠️")
                         else:
                             st.success(f"### Toxicity: **{toxicity}** ✅")
-
 # Entry point for the script
 if __name__ == '__main__':
     main()
