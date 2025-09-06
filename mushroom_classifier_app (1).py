@@ -241,7 +241,7 @@ def main():
                 # --- Classification Logic for CNN and SVM ---
                 st.image(bytes_data, caption='Uploaded Image.', use_column_width=True)
                 with st.spinner('Analyzing the mushroom...'):
-                    predicted_index, confidence = predict_classification(model, bytes_data, model_type)
+                    predicted_index, confidence = predict(model, bytes_data, model_type)
                     
                     if predicted_index is not None:
                         predicted_species = CLASS_NAMES[predicted_index]
